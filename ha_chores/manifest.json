@@ -1,5 +1,5 @@
 {
-  "domain": "home_chore_tracker",
+  "domain": "ha_chores",
   "name": "Home Chore Tracker",
   "documentation": "https://github.com/drdurczok/ha_chores",
   "dependencies": [],
