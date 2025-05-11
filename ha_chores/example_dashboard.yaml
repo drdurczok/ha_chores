@@ -1,0 +1,157 @@
+title: Home Chores
+path: chore
+icon: mdi:spray-bottle
+cards:
+  - type: vertical-stack
+    cards:
+      - type: markdown
+        content: >
+          # Home Cleaning Tracker
+          
+          This dashboard shows the cleaning status of various items in your home.
+          Items are color-coded based on their cleaning status:
+          
+          - 🟢 **Good**: Recently cleaned
+          - 🟠 **Due Soon**: Approaching cleaning deadline
+          - 🔴 **Overdue**: Past cleaning deadline
+
+      - type: custom:auto-entities
+        card:
+          type: glance
+          title: Cleaning Status Overview
+          show_state: true
+          state_color: true
+        filter:
+          include:
+            - entity_id: sensor.days_since_*_cleaned
+        sort:
+          method: state
+          numeric: true
+          reverse: true
+
+  - type: vertical-stack
+    title: Needs Cleaning Now
+    cards:
+      - type: custom:auto-entities
+        card:
+          type: entities
+          title: Items Overdue for Cleaning
+          show_header_toggle: false
+        filter:
+          include:
+            - entity_id: sensor.days_since_*_cleaned
+              state: "> state_attr(this.entity_id, 'hard_deadline')"
+        sort:
+          method: state
+          numeric: true
+          reverse: true
+
+  - type: vertical-stack
+    title: Due Soon
+    cards:
+      - type: custom:auto-entities
+        card:
+          type: entities
+          title: Items Due for Cleaning Soon
+          show_header_toggle: false
+        filter:
+          include:
+            - entity_id: sensor.days_since_*_cleaned
+              state: "> state_attr(this.entity_id, 'soft_deadline')"
+              state_not: "> state_attr(this.entity_id, 'hard_deadline')"
+        sort:
+          method: state
+          numeric: true
+          reverse: true
+
+  # Individual cards for cleaning items
+  - type: vertical-stack
+    title: Bathroom Cleaning
+    cards:
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.days_since_bathroom_cleaned
+            above: 5
+        card:
+          type: vertical-stack
+          cards:
+            - type: entity
+              entity: sensor.days_since_bathroom_cleaned
+              icon: mdi:shower
+              unit: days since clean
+              name: Bathroom
+            - type: markdown
+              content: >-
+                ## Bathroom Cleaning Checklist
+                
+                1. Clean toilet with toilet cleaner
+                2. Spray and wipe sink and countertops
+                3. Clean shower and bathtub
+                4. Mop floor with bathroom cleaner
+                
+                **Time estimate**: 30 minutes
+            - show_name: true
+              show_icon: true
+              type: button
+              entity: script.mark_bathroom_cleaned
+              name: Mark Cleaned
+              icon: mdi:check
+              icon_height: 24px
+              tap_action:
+                action: call-service
+                service: script.mark_bathroom_cleaned
+                data: {}
+
+  - type: vertical-stack
+    title: Floor Cleaning
+    cards:
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.days_since_floor_cleaned
+            above: 7
+        card:
+          type: vertical-stack
+          cards:
+            - type: entity
+              entity: sensor.days_since_floor_cleaned
+              icon: mdi:floor-plan
+              unit: days since clean
+              name: Floor
+            - type: markdown
+              content: >-
+                ## Floor Cleaning Checklist
+                
+                1. Sweep floors to remove loose dirt
+                2. Mop with floor cleaner solution
+                3. Allow to dry thoroughly
+                
+                **Time estimate**: 45 minutes
+            - show_name: true
+              show_icon: true
+              type: button
+              entity: script.mark_floor_cleaned
+              name: Mark Cleaned
+              icon: mdi:check
+              icon_height: 24px
+              tap_action:
+                action: call-service
+                service: script.mark_floor_cleaned
+                data: {}
+
+  - type: vertical-stack
+    title: AC Filter Cleaning
+    cards:
+      - type: conditional
+        conditions:
+          - condition: numeric_state
+            entity: sensor.days_since_ac_filters_cleaned
+            above: 30
+        card:
+          type: vertical-stack
+          cards:
+            - type: entity
+              entity: sensor.days_since_ac_filters_cleaned
+              icon: mdi:air-conditioner
+              unit: days since clean

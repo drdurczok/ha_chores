@@ -1,0 +1,7 @@
+{
+  "name": "Home Chore Tracker",
+  "render_readme": true,
+  "domain": "home_chore_tracker",
+  "documentation": "https://github.com/drdurczok/ha_chores",
+  "issue_tracker": "https://github.com/drdurczok/ha_chores/issues"
+}

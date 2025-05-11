@@ -1,0 +1,138 @@
+# Example Lovelace cards for Home Chore Tracker integration
+# You can copy these into your Lovelace dashboard configuration
+
+# Example card for an item that needs cleaning when over threshold
+# AC Filter example:
+type: conditional
+conditions:
+  - condition: numeric_state
+    entity: sensor.days_since_ac_filters_cleaned
+    above: 30
+card:
+  type: vertical-stack
+  cards:
+    - type: entity
+      entity: sensor.days_since_ac_filters_cleaned
+      icon: mdi:air-conditioner
+      unit: days since clean
+      name: AC Filter
+    - type: markdown
+      content: |-
+        1. Remove filters from AC Unit.
+        2. Wash with running water.
+        3. Spray blue fins in AC with **AC Fungal Spray**
+    - show_name: true
+      show_icon: true
+      type: button
+      entity: script.mark_ac_filters_cleaned
+      name: Mark Cleaned
+      icon: mdi:check
+      icon_height: 24px
+      tap_action:
+        action: call-service
+        service: script.mark_ac_filters_cleaned
+        data: {}
+
+# Floor Cleaning example:
+type: conditional
+conditions:
+  - condition: numeric_state
+    entity: sensor.days_since_floor_cleaned
+    above: 7
+card:
+  type: vertical-stack
+  cards:
+    - type: entity
+      entity: sensor.days_since_floor_cleaned
+      icon: mdi:floor-plan
+      unit: days since clean
+      name: Floor
+    - type: markdown
+      content: |-
+        1. Sweep floors to remove loose dirt
+        2. Mop with floor cleaner solution
+        3. Allow to dry thoroughly
+    - show_name: true
+      show_icon: true
+      type: button
+      entity: script.mark_floor_cleaned
+      name: Mark Cleaned
+      icon: mdi:check
+      icon_height: 24px
+      tap_action:
+        action: call-service
+        service: script.mark_floor_cleaned
+        data: {}
+
+# Bathroom cleaning example:
+type: conditional
+conditions:
+  - condition: numeric_state
+    entity: sensor.days_since_bathroom_cleaned
+    above: 5
+card:
+  type: vertical-stack
+  cards:
+    - type: entity
+      entity: sensor.days_since_bathroom_cleaned
+      icon: mdi:shower
+      unit: days since clean
+      name: Bathroom
+    - type: markdown
+      content: |-
+        1. Clean toilet with toilet cleaner
+        2. Spray and wipe sink and countertops
+        3. Clean shower and bathtub
+        4. Mop floor with bathroom cleaner
+    - show_name: true
+      show_icon: true
+      type: button
+      entity: script.mark_bathroom_cleaned
+      name: Mark Cleaned
+      icon: mdi:check
+      icon_height: 24px
+      tap_action:
+        action: call-service
+        service: script.mark_bathroom_cleaned
+        data: {}
+
+# Dashboard card showing all cleaning items:
+type: custom:auto-entities
+card:
+  type: entities
+  title: Cleaning Tasks
+  show_header_toggle: false
+filter:
+  include:
+    - entity_id: sensor.days_since_*_cleaned
+sort:
+  method: state
+  reverse: true
+  numeric: true
+
+# Card with color-coded background based on status:
+type: custom:template-entity-row
+entity: sensor.days_since_refrigerator_cleaned
+name: Refrigerator
+icon: mdi:fridge
+tap_action:
+  action: call-service
+  service: script.mark_refrigerator_cleaned
+  data: {}
+state_color: true
+card_mod:
+  style: >
+    :host {
+      {% if states('sensor.days_since_refrigerator_cleaned')|int > 
+           state_attr('sensor.days_since_refrigerator_cleaned', 'hard_deadline')|int %}
+        --paper-item-icon-color: var(--error-color);
+        background: rgba(var(--rgb-error-color), 0.2);
+      {% elif states('sensor.days_since_refrigerator_cleaned')|int > 
+              state_attr('sensor.days_since_refrigerator_cleaned', 'soft_deadline')|int %}
+        --paper-item-icon-color: var(--warning-color);
+        background: rgba(var(--rgb-warning-color), 0.2);
+      {% else %}
+        --paper-item-icon-color: var(--success-color);
+        background: rgba(var(--rgb-success-color), 0.1);
+      {% endif %}
+    }
