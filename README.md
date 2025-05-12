@@ -27,7 +27,7 @@ This custom integration for Home Assistant helps you track chores around your ho
 
 3. Add the following to your `configuration.yaml`:
    ```yaml
-   home_chore_tracker:
+   ha_chores:
      csv_path: "home_chore_tracker_data.csv"
    ```
 
