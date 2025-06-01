@@ -118,9 +118,11 @@ class ChoreTrackerSensor(SensorEntity):
 
                 try:
                     # Calculate days since chore
-                    self._last_done = item["date_last_done"]
+                    self._last_done = item["date_last_chore"]
                     if self._last_done:
-                        last_done_date = datetime.strptime(self._last_done, "%Y-%m-%d")
+                        last_done_date = datetime.strptime(
+                            self._last_done, "%Y-%m-%d"
+                        )
                         self._days_since = (datetime.now() - last_done_date).days
                     else:
                         self._days_since = 999  # Default for items never done

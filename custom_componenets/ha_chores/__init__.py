@@ -27,7 +27,13 @@ DATA_CHORE_ITEMS = "chore_items"
 DATA_CSV_PATH = "csv_path"
 
 DEFAULT_SCAN_INTERVAL = timedelta(hours=1)
-CSV_HEADER = ["title", "date_last_chore", "soft_deadline_days", "hard_deadline_days", "description"]
+CSV_HEADER = [
+    "title",
+    "date_last_chore",
+    "soft_deadline_days",
+    "hard_deadline_days",
+    "description",
+]
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -132,7 +138,7 @@ async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
     found = False
     for item in items:
         if item["title"].lower().replace(" ", "_") == item_id:
-            item["date_last_done"] = datetime.now().strftime("%Y-%m-%d")
+            item["date_last_chore"] = datetime.now().strftime("%Y-%m-%d")
             found = True
             break
 
@@ -192,7 +198,9 @@ async def load_items_from_csv(hass: HomeAssistant) -> None:
                 if sensor is not None:
                     # Calculate days since chore
                     try:
-                        last_done = datetime.strptime(item["date_last_done"], "%Y-%m-%d")
+                        last_done = datetime.strptime(
+                            item["date_last_chore"], "%Y-%m-%d"
+                        )
                         days_since = (datetime.now() - last_done).days
                     except (ValueError, TypeError):
                         days_since = 999  # Default for items never done
@@ -206,7 +214,7 @@ async def load_items_from_csv(hass: HomeAssistant) -> None:
                             "soft_deadline": item["soft_deadline_days"],
                             "hard_deadline": item["hard_deadline_days"],
                             "description": item["description"],
-                            "last_done": item["date_last_done"],
+                            "last_done": item["date_last_chore"],
                         }
                     )
             except Exception as e:
