@@ -2,5 +2,5 @@
 ################# HA CHORES ##################
 ##############################################
 home_chores_tracker:
-  csv_path: "/homeassistant/config/sample_chore_data.csv"
+  csv_path: "sample_chore_data.csv"
 
