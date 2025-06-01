@@ -95,7 +95,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     hass.data[DOMAIN] = {
         DATA_CSV_PATH: csv_path,
-        DATA_CHORE_ITEMS: {}
+        DATA_CHORE_ITEMS: []
     }
 
     # Register services
@@ -206,7 +206,12 @@ async def load_items_from_csv(hass: HomeAssistant) -> None:
         items = await hass.async_add_executor_job(_read_items, csv_path)
 
         hass.data[DOMAIN][DATA_CHORE_ITEMS] = items
-        _LOGGER.debug(f"Loaded {len(items)} chore items from CSV")
+        if not items:
+            _LOGGER.warning(
+                "No chores found in CSV at %s", csv_path
+            )
+        else:
+            _LOGGER.debug("Loaded %d chore items from CSV", len(items))
 
         # Update sensor states
         for item in items:
@@ -249,12 +254,19 @@ async def load_items_from_csv(hass: HomeAssistant) -> None:
     except Exception as e:
         _LOGGER.error(f"Error loading chore items from CSV: {e}")
 
+    # Re-create scripts after loading items so they stay in sync
+    setup_scripts(hass)
+
 def setup_scripts(hass: HomeAssistant) -> None:
     """Set up scripts for marking items as done."""
     items = hass.data[DOMAIN].get(DATA_CHORE_ITEMS, [])
+    csv_path = hass.data[DOMAIN].get(DATA_CSV_PATH, "unknown")
 
     if not items:
-        _LOGGER.warning("No chore items found for script setup - CSV may be missing or empty")
+        _LOGGER.warning(
+            "No chore items found for script setup - CSV may be missing or empty at %s",
+            csv_path,
+        )
         return
 
     for item in items:
@@ -277,6 +289,5 @@ def setup_scripts(hass: HomeAssistant) -> None:
         )
 
         # Register the script
-        hass.services.async_register(
-            "script", script_id, script.run
-        )
+        if not hass.services.has_service("script", script_id):
+            hass.services.async_register("script", script_id, script.run)
