@@ -1,0 +1,9 @@
+mark_done:
+  name: Mark chore done
+  description: Set “date_last_chore” to today and refresh the sensors.
+  fields:
+    item_id:
+      name: Item ID
+      description: The chore’s slug (lower-case, spaces → “_”).
+      required: true
+      example: vacuum_filter

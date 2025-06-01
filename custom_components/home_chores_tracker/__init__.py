@@ -38,7 +38,9 @@ CSV_HEADER = [
 
 def _create_csv(path: str) -> None:
     """Create an empty CSV file with the default header."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(CSV_HEADER)

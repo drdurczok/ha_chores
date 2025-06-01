@@ -1,14 +1,12 @@
 {
   "domain": "home_chores_tracker",
   "name": "Home Chores Tracker",
-  "documentation": "https://github.com/drdurczok/ha_chores",
-  "dependencies": [],
-  "codeowners": ["@drdurczok"],
-  "requirements": [
-    "voluptuous>=0.14.2"
-  ],
   "version": "0.1.0",
-  "config_flow": false,
+  "documentation": "https://github.com/drdurczok/ha_chores",
+  "codeowners": ["@drdurczok"],
+  "requirements": ["voluptuous>=0.14.2"],
   "iot_class": "local_polling",
+  "integration_type": "helper",
+  "config_flow": false,
   "logo": "logo.png"
 }
