@@ -112,11 +112,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, 'mark_done', mark_done_service
     )
 
-    hass.helpers.discovery.async_load_platform(
+    await discovery.async_load_platform(
+        hass,
         DOMAIN,
         "sensor",
         {},
-        config
+        config,
     )
 
     # Load sensors from CSV
