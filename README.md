@@ -15,20 +15,20 @@ This custom integration for Home Assistant helps you track chores around your ho
 
 ### Manual Installation
 
-1. Copy the `ha_chores` directory to your Home Assistant `custom_components` directory:
+1. Copy the `home_chores_tracker` directory to your Home Assistant `custom_components` directory:
    ```
-   /config/custom_components/ha_chores/
+   /config/custom_components/home_chores_tracker/
    ```
 
 2. Create a CSV file to store your chore data:
    ```
-   /config/ha_chores_data.csv
+   /config/home_chores_tracker_data.csv
    ```
 
 3. Add the following to your `configuration.yaml`:
    ```yaml
-   ha_chores:
-     csv_path: "ha_chores_data.csv"
+   home_chores_tracker:
+     csv_path: "home_chores_tracker_data.csv"
    ```
 
 4. Restart Home Assistant
@@ -103,13 +103,13 @@ See the `example_lovelace_cards.yaml` file for more examples.
 
 The integration provides the following service:
 
-- `ha_chores.mark_done`: Mark an item as done
+- `home_chores_tracker.mark_done`: Mark an item as done
   - Parameters:
     - `item_id`: The ID of the item (lowercase title with spaces replaced by underscores)
 
 Example service call:
 ```yaml
-service: ha_chores.mark_done
+service: home_chores_tracker.mark_done
 data:
   item_id: ac_filters
 ```
@@ -133,7 +133,7 @@ Each sensor has the following attributes:
 
 ## Troubleshooting
 
-- If your sensors are not updating, check the Home Assistant logs for any errors related to the `ha_chores` component.
+- If your sensors are not updating, check the Home Assistant logs for any errors related to the `home_chores_tracker` component.
 - Make sure your CSV file has the correct format and permissions.
 - After making changes to the CSV file manually, you may need to restart Home Assistant or call the `homeassistant.reload_config_entry` service.
 
