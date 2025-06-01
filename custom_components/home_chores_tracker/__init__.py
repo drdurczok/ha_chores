@@ -35,6 +35,8 @@ CSV_HEADER = [
     "description",
 ]
 
+PLATFORMS: list[str] = ["sensor"]
+
 
 def _create_csv(path: str) -> None:
     """Create an empty CSV file with the default header."""
@@ -121,19 +123,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async_track_time_interval(hass, refresh_data, DEFAULT_SCAN_INTERVAL)
 
-    # Load the sensor platform
-    hass.async_create_task(
-        discovery.async_load_platform(hass, "sensor", DOMAIN, {}, config)
-    )
-
     # Set up scripts for each item
     setup_scripts(hass)
 
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up from a config entry."""
+    """Set up Home Chores Tracker from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
