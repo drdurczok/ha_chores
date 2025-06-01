@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.typing import HomeAssistantType, ConfigType, DiscoveryInfoType
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from . import DOMAIN, DATA_CHORE_ITEMS
 
@@ -14,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_platform(
-        hass: HomeAssistantType,
+        hass: HomeAssistant,
         config: ConfigType,
         async_add_entities: callable,
         discovery_info: DiscoveryInfoType = None,
@@ -47,6 +48,7 @@ class ChoreTrackerSensor(SensorEntity):
         self._hard_deadline = int(item["hard_deadline_days"])
         self._description = item["description"]
         self._attr_unique_id = f"chore_tracker_{self._item_id}"
+        self.entity_id = f"sensor.days_since_{self._item_id}_done"
 
     @property
     def name(self):
@@ -63,10 +65,6 @@ class ChoreTrackerSensor(SensorEntity):
         """Return the unit of measurement."""
         return "days"
 
-    @property
-    def entity_id(self):
-        """Return the entity ID."""
-        return f"sensor.days_since_{self._item_id}_done"
 
     @property
     def icon(self):
