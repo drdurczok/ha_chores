@@ -51,11 +51,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     # Ensure the CSV file exists with proper headers
     if not os.path.isfile(csv_path):
-        _LOGGER.info(f"Creating new chore tracker CSV at {csv_path}")
-        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-        with open(csv_path, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(CSV_HEADER)
+        _LOGGER.warning(f"CSV file not found at {csv_path}")
+        try:
+            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+            _LOGGER.info(f"Creating new chore tracker CSV at {csv_path}")
+            with open(csv_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(CSV_HEADER)
+            _LOGGER.info(f"Successfully created new CSV file at {csv_path}")
+        except Exception as e:
+            _LOGGER.error(f"Failed to create CSV file at {csv_path}: {e}")
+            return False
 
     hass.data[DOMAIN] = {
         DATA_CSV_PATH: csv_path,
@@ -107,11 +113,20 @@ async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
     csv_path = hass.data[DOMAIN][DATA_CSV_PATH]
     items = []
 
+    # Check if CSV file exists
+    if not os.path.isfile(csv_path):
+        _LOGGER.error(f"Cannot mark item as done: CSV file not found at {csv_path}")
+        return
+
     # Read all items
-    with open(csv_path, 'r', newline='') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            items.append(row)
+    try:
+        with open(csv_path, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                items.append(row)
+    except Exception as e:
+        _LOGGER.error(f"Error reading CSV file at {csv_path}: {e}")
+        return
 
     # Update the specified item
     found = False
@@ -126,10 +141,15 @@ async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
         return
 
     # Write back to CSV
-    with open(csv_path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_HEADER)
-        writer.writeheader()
-        writer.writerows(items)
+    try:
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_HEADER)
+            writer.writeheader()
+            writer.writerows(items)
+        _LOGGER.info(f"Successfully marked {item_id} as done")
+    except Exception as e:
+        _LOGGER.error(f"Failed to write to CSV file at {csv_path}: {e}")
+        return
 
     # Force refresh sensors
     await load_items_from_csv(hass)
@@ -138,6 +158,20 @@ async def load_items_from_csv(hass: HomeAssistant) -> None:
     """Load chore items from the CSV file."""
     csv_path = hass.data[DOMAIN][DATA_CSV_PATH]
     items = []
+
+    # Check if CSV file exists
+    if not os.path.isfile(csv_path):
+        _LOGGER.error(f"Cannot load items: CSV file not found at {csv_path}")
+        try:
+            _LOGGER.info(f"Attempting to create a new CSV file at {csv_path}")
+            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+            with open(csv_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(CSV_HEADER)
+            _LOGGER.info(f"Successfully created new CSV file at {csv_path}")
+        except Exception as e:
+            _LOGGER.error(f"Failed to create CSV file at {csv_path}: {e}")
+        return
 
     try:
         with open(csv_path, 'r', newline='') as f:
@@ -178,12 +212,22 @@ async def load_items_from_csv(hass: HomeAssistant) -> None:
             except Exception as e:
                 _LOGGER.error(f"Error updating sensor {sensor_entity_id}: {e}")
 
+    except FileNotFoundError:
+        _LOGGER.error(f"CSV file not found at {csv_path}")
+    except PermissionError:
+        _LOGGER.error(f"Permission denied when accessing CSV file at {csv_path}")
+    except csv.Error as e:
+        _LOGGER.error(f"CSV error when loading from {csv_path}: {e}")
     except Exception as e:
         _LOGGER.error(f"Error loading chore items from CSV: {e}")
 
 def setup_scripts(hass: HomeAssistant) -> None:
     """Set up scripts for marking items as done."""
-    items = hass.data[DOMAIN][DATA_CHORE_ITEMS]
+    items = hass.data[DOMAIN].get(DATA_CHORE_ITEMS, [])
+
+    if not items:
+        _LOGGER.warning("No chore items found for script setup - CSV may be missing or empty")
+        return
 
     for item in items:
         item_id = item["title"].lower().replace(" ", "_")
