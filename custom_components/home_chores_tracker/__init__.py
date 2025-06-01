@@ -16,7 +16,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.event import track_time_interval
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers import discovery
 from homeassistant.helpers.script import Script
 
@@ -34,6 +34,29 @@ CSV_HEADER = [
     "hard_deadline_days",
     "description",
 ]
+
+
+def _create_csv(path: str) -> None:
+    """Create an empty CSV file with the default header."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(CSV_HEADER)
+
+
+def _read_items(path: str):
+    """Read all rows from the CSV file."""
+    with open(path, "r", newline="") as f:
+        reader = csv.DictReader(f)
+        return [row for row in reader]
+
+
+def _write_items(path: str, items) -> None:
+    """Write all items back to the CSV file."""
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_HEADER)
+        writer.writeheader()
+        writer.writerows(items)
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -59,11 +82,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if not os.path.isfile(csv_path):
         _LOGGER.warning(f"CSV file not found at {csv_path}")
         try:
-            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
             _LOGGER.info(f"Creating new chore tracker CSV at {csv_path}")
-            with open(csv_path, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(CSV_HEADER)
+            await hass.async_add_executor_job(_create_csv, csv_path)
             _LOGGER.info(f"Successfully created new CSV file at {csv_path}")
         except Exception as e:
             _LOGGER.error(f"Failed to create CSV file at {csv_path}: {e}")
@@ -97,7 +117,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         """Refresh data from CSV file."""
         hass.async_create_task(load_items_from_csv(hass))
 
-    track_time_interval(hass, refresh_data, DEFAULT_SCAN_INTERVAL)
+    async_track_time_interval(hass, refresh_data, DEFAULT_SCAN_INTERVAL)
 
     # Load the sensor platform
     hass.async_create_task(
@@ -126,10 +146,7 @@ async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
 
     # Read all items
     try:
-        with open(csv_path, 'r', newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                items.append(row)
+        items = await hass.async_add_executor_job(_read_items, csv_path)
     except Exception as e:
         _LOGGER.error(f"Error reading CSV file at {csv_path}: {e}")
         return
@@ -148,10 +165,7 @@ async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
 
     # Write back to CSV
     try:
-        with open(csv_path, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_HEADER)
-            writer.writeheader()
-            writer.writerows(items)
+        await hass.async_add_executor_job(_write_items, csv_path, items)
         _LOGGER.info(f"Successfully marked {item_id} as done")
     except Exception as e:
         _LOGGER.error(f"Failed to write to CSV file at {csv_path}: {e}")
@@ -170,20 +184,14 @@ async def load_items_from_csv(hass: HomeAssistant) -> None:
         _LOGGER.error(f"Cannot load items: CSV file not found at {csv_path}")
         try:
             _LOGGER.info(f"Attempting to create a new CSV file at {csv_path}")
-            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-            with open(csv_path, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(CSV_HEADER)
+            await hass.async_add_executor_job(_create_csv, csv_path)
             _LOGGER.info(f"Successfully created new CSV file at {csv_path}")
         except Exception as e:
             _LOGGER.error(f"Failed to create CSV file at {csv_path}: {e}")
         return
 
     try:
-        with open(csv_path, 'r', newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                items.append(row)
+        items = await hass.async_add_executor_job(_read_items, csv_path)
 
         hass.data[DOMAIN][DATA_CHORE_ITEMS] = items
         _LOGGER.debug(f"Loaded {len(items)} chore items from CSV")
