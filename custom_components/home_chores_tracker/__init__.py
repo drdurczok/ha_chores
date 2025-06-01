@@ -19,6 +19,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers import discovery
 from homeassistant.helpers.script import Script
+from homeassistant.components.script import DOMAIN as SCRIPT_DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,9 +51,16 @@ def _create_csv(path: str) -> None:
 
 def _read_items(path: str):
     """Read all rows from the CSV file."""
-    with open(path, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        return [row for row in reader]
+    if not os.path.isfile(path):
+        return []
+
+    try:
+        with open(path, "r", newline="") as f:
+            reader = csv.DictReader(f)
+            return [row for row in reader]
+    except Exception as e:
+        _LOGGER.error(f"Error reading CSV file {path}: {e}")
+        return []
 
 
 def _write_items(path: str, items) -> None:
@@ -93,10 +101,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             _LOGGER.error(f"Failed to create CSV file at {csv_path}: {e}")
             return False
 
+    # Initialize hass.data for this domain
     hass.data[DOMAIN] = {
         DATA_CSV_PATH: csv_path,
         DATA_CHORE_ITEMS: []
     }
+
+    # Load items from CSV first
+    await load_items_from_csv(hass)
 
     # Register services
     async def mark_done_service(call):
@@ -112,8 +124,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, 'mark_done', mark_done_service
     )
 
-    await load_items_from_csv(hass)
-
+    # Load sensor platform after data is loaded
     hass.async_create_task(
         discovery.async_load_platform(
             hass,
@@ -124,9 +135,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         )
     )
 
-    # Load sensors from CSV
-    await load_items_from_csv(hass)
-
     # Set up periodic refresh
     @callback
     def refresh_data(now=None):
@@ -135,8 +143,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async_track_time_interval(hass, refresh_data, DEFAULT_SCAN_INTERVAL)
 
-    # Set up scripts for each item
-    setup_scripts(hass)
+    # Set up scripts for each item - delay this to ensure script platform is ready
+    def setup_scripts_delayed():
+        hass.async_create_task(setup_scripts(hass))
+
+    # Schedule script setup after a short delay
+    hass.loop.call_later(2, setup_scripts_delayed)
 
     return True
 
@@ -149,18 +161,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
     """Mark a specific item as done today."""
     csv_path = hass.data[DOMAIN][DATA_CSV_PATH]
-    items = []
-
-    # Check if CSV file exists
-    if not os.path.isfile(csv_path):
-        _LOGGER.error(f"Cannot mark item as done: CSV file not found at {csv_path}")
-        return
 
     # Read all items
-    try:
-        items = await hass.async_add_executor_job(_read_items, csv_path)
-    except Exception as e:
-        _LOGGER.error(f"Error reading CSV file at {csv_path}: {e}")
+    items = await hass.async_add_executor_job(_read_items, csv_path)
+    if not items:
+        _LOGGER.error(f"No items found in CSV file at {csv_path}")
         return
 
     # Update the specified item
@@ -189,7 +194,6 @@ async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
 async def load_items_from_csv(hass: HomeAssistant) -> None:
     """Load chore items from the CSV file."""
     csv_path = hass.data[DOMAIN][DATA_CSV_PATH]
-    items = []
 
     # Check if CSV file exists
     if not os.path.isfile(csv_path):
@@ -204,90 +208,90 @@ async def load_items_from_csv(hass: HomeAssistant) -> None:
 
     try:
         items = await hass.async_add_executor_job(_read_items, csv_path)
-
         hass.data[DOMAIN][DATA_CHORE_ITEMS] = items
+
         if not items:
-            _LOGGER.warning(
-                "No chores found in CSV at %s", csv_path
-            )
+            _LOGGER.warning(f"No chores found in CSV at {csv_path}")
         else:
-            _LOGGER.debug("Loaded %d chore items from CSV", len(items))
+            _LOGGER.info(f"Loaded {len(items)} chore items from CSV")
 
-        # Update sensor states
-        for item in items:
-            item_id = item["title"].lower().replace(" ", "_")
-            sensor_entity_id = f"sensor.days_since_{item_id}_done"
-
-            try:
-                sensor = hass.states.get(sensor_entity_id)
-                if sensor is not None:
-                    # Calculate days since chore
-                    try:
-                        last_done = datetime.strptime(
-                            item["date_last_chore"], "%Y-%m-%d"
-                        )
-                        days_since = (datetime.now() - last_done).days
-                    except (ValueError, TypeError):
-                        days_since = 999  # Default for items never done
-
-                    hass.states.async_set(
-                        sensor_entity_id,
-                        days_since,
-                        {
-                            "friendly_name": f"{item['title']}",
-                            "unit_of_measurement": "days",
-                            "soft_deadline": item["soft_deadline_days"],
-                            "hard_deadline": item["hard_deadline_days"],
-                            "description": item["description"],
-                            "last_done": item["date_last_chore"],
-                        }
-                    )
-            except Exception as e:
-                _LOGGER.error(f"Error updating sensor {sensor_entity_id}: {e}")
-
-    except FileNotFoundError:
-        _LOGGER.error(f"CSV file not found at {csv_path}")
-    except PermissionError:
-        _LOGGER.error(f"Permission denied when accessing CSV file at {csv_path}")
-    except csv.Error as e:
-        _LOGGER.error(f"CSV error when loading from {csv_path}: {e}")
     except Exception as e:
         _LOGGER.error(f"Error loading chore items from CSV: {e}")
+        hass.data[DOMAIN][DATA_CHORE_ITEMS] = []
 
-    # Re-create scripts after loading items so they stay in sync
-    setup_scripts(hass)
-
-def setup_scripts(hass: HomeAssistant) -> None:
+async def setup_scripts(hass: HomeAssistant) -> None:
     """Set up scripts for marking items as done."""
     items = hass.data[DOMAIN].get(DATA_CHORE_ITEMS, [])
     csv_path = hass.data[DOMAIN].get(DATA_CSV_PATH, "unknown")
 
     if not items:
         _LOGGER.warning(
-            "No chore items found for script setup - CSV may be missing or empty at %s",
-            csv_path,
+            f"No chore items found for script setup - CSV may be missing or empty at {csv_path}"
         )
         return
+
+    # Ensure script domain is initialized
+    if SCRIPT_DOMAIN not in hass.data:
+        hass.data[SCRIPT_DOMAIN] = {}
 
     for item in items:
         item_id = item["title"].lower().replace(" ", "_")
         script_id = f"mark_{item_id}_done"
 
-        # Create a script for each item
-        sequence = [{
-            "service": f"{DOMAIN}.mark_done",
-            "data": {
-                "item_id": item_id
-            }
-        }]
+        # Create script configuration
+        script_config = {
+            "alias": f"Mark {item['title']} as Done",
+            "sequence": [{
+                "service": f"{DOMAIN}.mark_done",
+                "data": {
+                    "item_id": item_id
+                }
+            }]
+        }
 
-        script = Script(
-            hass,
-            sequence,
-            f"Mark {item['title']} as Done",
-            DOMAIN
-        )
+        # Create the script entity directly
+        try:
+            from homeassistant.components.script import ScriptEntity
 
-        # Register the script
-        if not hass.services.has_service("script", script_id):
-            hass.services.async_register("script", script_id, script.run)
+            script_entity = ScriptEntity(hass, script_id, script_config, True)
+
+            # Register the script entity
+            hass.data[SCRIPT_DOMAIN][script_id] = script_entity
+
+            # Add to entity registry
+            entity_id = f"script.{script_id}"
+            hass.states.async_set(entity_id, "off", {
+                "friendly_name": f"Mark {item['title']} as Done",
+                "icon": "mdi:check-circle"
+            })
+
+            _LOGGER.info(f"Created script: {entity_id}")
+
+        except Exception as e:
+            _LOGGER.error(f"Failed to create script {script_id}: {e}")
+
+            # Fallback: create a simple script using the Script helper
+            try:
+                sequence = [{
+                    "service": f"{DOMAIN}.mark_done",
+                    "data": {
+                        "item_id": item_id
+                    }
+                }]
+
+                script = Script(
+                    hass,
+                    sequence,
+                    f"Mark {item['title']} as Done",
+                    DOMAIN
+                )
+
+                # Store the script in a way that makes it accessible
+                if "scripts" not in hass.data:
+                    hass.data["scripts"] = {}
+                hass.data["scripts"][script_id] = script
+
+                _LOGGER.info(f"Created fallback script: {script_id}")
+
+            except Exception as fallback_error:
+                _LOGGER.error(f"Failed to create fallback script {script_id}: {fallback_error}")

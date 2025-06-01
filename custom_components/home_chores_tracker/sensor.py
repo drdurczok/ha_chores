@@ -21,16 +21,25 @@ async def async_setup_platform(
         discovery_info: DiscoveryInfoType = None,
 ):
     """Set up the chore tracker sensor platform."""
-    if discovery_info is None:
+    _LOGGER.info("Setting up chore tracker sensor platform")
+
+    # Get items from hass.data
+    items = hass.data.get(DOMAIN, {}).get(DATA_CHORE_ITEMS, [])
+
+    if not items:
+        _LOGGER.warning("No chore items found for sensor setup")
         return
 
-    items = hass.data[DOMAIN][DATA_CHORE_ITEMS]
     entities = []
-
     for item in items:
+        _LOGGER.info(f"Creating sensor for: {item['title']}")
         entities.append(ChoreTrackerSensor(hass, item))
 
-    async_add_entities(entities, True)
+    if entities:
+        async_add_entities(entities, True)
+        _LOGGER.info(f"Added {len(entities)} chore tracker sensors")
+    else:
+        _LOGGER.warning("No sensor entities created")
 
 
 class ChoreTrackerSensor(SensorEntity):
@@ -50,10 +59,31 @@ class ChoreTrackerSensor(SensorEntity):
         self._attr_unique_id = f"chore_tracker_{self._item_id}"
         self.entity_id = f"sensor.days_since_{self._item_id}_done"
 
+        # Calculate initial state
+        self._calculate_days_since()
+
+        _LOGGER.info(f"Initialized sensor: {self.entity_id}")
+
+    def _calculate_days_since(self):
+        """Calculate days since the chore was last done."""
+        try:
+            last_done_str = self._item.get("date_last_chore", "")
+            if last_done_str and last_done_str.strip():
+                self._last_done = last_done_str
+                last_done_date = datetime.strptime(last_done_str, "%Y-%m-%d")
+                self._days_since = (datetime.now() - last_done_date).days
+            else:
+                self._last_done = None
+                self._days_since = 999  # Default for items never done
+        except (ValueError, TypeError) as e:
+            _LOGGER.warning(f"Error calculating dates for {self._name}: {e}")
+            self._days_since = 999
+            self._last_done = None
+
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"{self._name}"
+        return f"Days Since {self._name} Done"
 
     @property
     def state(self):
@@ -64,7 +94,6 @@ class ChoreTrackerSensor(SensorEntity):
     def unit_of_measurement(self):
         """Return the unit of measurement."""
         return "days"
-
 
     @property
     def icon(self):
@@ -88,6 +117,7 @@ class ChoreTrackerSensor(SensorEntity):
             "hard_deadline": self._hard_deadline,
             "description": self._description,
             "status": self._get_status(),
+            "item_id": self._item_id,
         }
 
     def _get_status(self):
@@ -105,27 +135,18 @@ class ChoreTrackerSensor(SensorEntity):
     async def async_update(self):
         """Update the sensor."""
         # Find the current item data
-        items = self.hass.data[DOMAIN][DATA_CHORE_ITEMS]
+        items = self.hass.data.get(DOMAIN, {}).get(DATA_CHORE_ITEMS, [])
 
         for item in items:
-            if item["title"] == self._name:
+            if item["title"] == self._name.replace("Days Since ", "").replace(" Done", ""):
                 self._item = item
                 self._description = item["description"]
                 self._soft_deadline = int(item["soft_deadline_days"])
                 self._hard_deadline = int(item["hard_deadline_days"])
-
-                try:
-                    # Calculate days since chore
-                    self._last_done = item["date_last_chore"]
-                    if self._last_done:
-                        last_done_date = datetime.strptime(
-                            self._last_done, "%Y-%m-%d"
-                        )
-                        self._days_since = (datetime.now() - last_done_date).days
-                    else:
-                        self._days_since = 999  # Default for items never done
-                except (ValueError, TypeError) as e:
-                    _LOGGER.warning(f"Error calculating dates for {self._name}: {e}")
-                    self._days_since = None
-
+                self._calculate_days_since()
                 break
+
+    @property
+    def should_poll(self):
+        """Return True if entity has to be polled for state."""
+        return True

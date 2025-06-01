@@ -4,3 +4,8 @@
 home_chores_tracker:
   csv_path: "sample_chore_data.csv"
 
+
+# Optional: If you want to debug the component, you can uncomment the following lines.
+#logger:
+#  logs:
+#    custom_components.home_chores_tracker: debug
