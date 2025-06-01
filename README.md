@@ -22,13 +22,13 @@ This custom integration for Home Assistant helps you track chores around your ho
 
 2. Create a CSV file to store your chore data:
    ```
-   /config/home_chore_tracker_data.csv
+   /config/ha_chores_data.csv
    ```
 
 3. Add the following to your `configuration.yaml`:
    ```yaml
    ha_chores:
-     csv_path: "home_chore_tracker_data.csv"
+     csv_path: "ha_chores_data.csv"
    ```
 
 4. Restart Home Assistant
@@ -103,13 +103,13 @@ See the `example_lovelace_cards.yaml` file for more examples.
 
 The integration provides the following service:
 
-- `home_chore_tracker.mark_done`: Mark an item as done
+- `ha_chores.mark_done`: Mark an item as done
   - Parameters:
     - `item_id`: The ID of the item (lowercase title with spaces replaced by underscores)
 
 Example service call:
 ```yaml
-service: home_chore_tracker.mark_done
+service: ha_chores.mark_done
 data:
   item_id: ac_filters
 ```
@@ -133,7 +133,7 @@ Each sensor has the following attributes:
 
 ## Troubleshooting
 
-- If your sensors are not updating, check the Home Assistant logs for any errors related to the `home_chore_tracker` component.
+- If your sensors are not updating, check the Home Assistant logs for any errors related to the `ha_chores` component.
 - Make sure your CSV file has the correct format and permissions.
 - After making changes to the CSV file manually, you may need to restart Home Assistant or call the `homeassistant.reload_config_entry` service.
 
