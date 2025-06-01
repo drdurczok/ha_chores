@@ -112,6 +112,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, 'mark_done', mark_done_service
     )
 
+    await load_items_from_csv(hass)
+
+    hass.async_create_task(
+        discovery.async_load_platform(
+            hass,
+            "sensor",
+            DOMAIN,
+            {},
+            config,
+        )
+    )
+
     await discovery.async_load_platform(
         hass,
         DOMAIN,
