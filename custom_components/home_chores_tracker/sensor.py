@@ -6,8 +6,9 @@ from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import Entity
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.helpers.event import async_track_time_interval
 
 from . import DOMAIN, DATA_CHORE_ITEMS
 
@@ -63,6 +64,20 @@ class ChoreTrackerSensor(SensorEntity):
         self._calculate_days_since()
 
         _LOGGER.info(f"Initialized sensor: {self.entity_id}")
+
+        # Listen for chore done events to update immediately
+        self._setup_event_listener()
+
+    def _setup_event_listener(self):
+        """Set up event listener for immediate updates."""
+        @callback
+        def handle_chore_done(event):
+            """Handle chore done event for immediate update."""
+            if event.data.get("item_id") == self._item_id:
+                _LOGGER.info(f"Received chore done event for {self._item_id}")
+                self.hass.async_create_task(self.async_update_ha_state(True))
+
+        self.hass.bus.async_listen("chore_marked_done", handle_chore_done)
 
     def _calculate_days_since(self):
         """Calculate days since the chore was last done."""
@@ -148,5 +163,16 @@ class ChoreTrackerSensor(SensorEntity):
 
     @property
     def should_poll(self):
-        """Return True if entity has to be polled for state."""
-        return True
+        """Return False - we'll update via events and periodic refresh."""
+        return False
+
+    async def async_added_to_hass(self):
+        """Handle entity added to hass."""
+        # Set up periodic update (as backup)
+        async def periodic_update(now=None):
+            """Periodic update of the sensor."""
+            await self.async_update()
+            self.async_write_ha_state()
+
+        # Update every 5 minutes as backup
+        async_track_time_interval(self.hass, periodic_update, timedelta(minutes=5))

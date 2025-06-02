@@ -170,9 +170,11 @@ async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
 
     # Update the specified item
     found = False
+    item_title = None
     for item in items:
         if item["title"].lower().replace(" ", "_") == item_id:
             item["date_last_chore"] = datetime.now().strftime("%Y-%m-%d")
+            item_title = item["title"]
             found = True
             break
 
@@ -188,8 +190,17 @@ async def mark_item_done(hass: HomeAssistant, item_id: str) -> None:
         _LOGGER.error(f"Failed to write to CSV file at {csv_path}: {e}")
         return
 
-    # Force refresh sensors
+    # Force refresh sensors data
     await load_items_from_csv(hass)
+
+    # Fire a state change event to trigger sensor updates
+    hass.bus.async_fire("chore_marked_done", {
+        "item_id": item_id,
+        "item_title": item_title,
+        "entity_id": f"sensor.days_since_{item_id}_done"
+    })
+
+    _LOGGER.info(f"Fired chore_marked_done event for {item_id}")
 
 async def load_items_from_csv(hass: HomeAssistant) -> None:
     """Load chore items from the CSV file."""
@@ -220,7 +231,7 @@ async def load_items_from_csv(hass: HomeAssistant) -> None:
         hass.data[DOMAIN][DATA_CHORE_ITEMS] = []
 
 async def setup_scripts(hass: HomeAssistant) -> None:
-    """Set up scripts for marking items as done."""
+    """Set up script services for marking items as done."""
     items = hass.data[DOMAIN].get(DATA_CHORE_ITEMS, [])
     csv_path = hass.data[DOMAIN].get(DATA_CSV_PATH, "unknown")
 
@@ -230,68 +241,49 @@ async def setup_scripts(hass: HomeAssistant) -> None:
         )
         return
 
-    # Ensure script domain is initialized
-    if SCRIPT_DOMAIN not in hass.data:
-        hass.data[SCRIPT_DOMAIN] = {}
-
     for item in items:
         item_id = item["title"].lower().replace(" ", "_")
-        script_id = f"mark_{item_id}_done"
+        script_service_name = f"mark_{item_id}_done"
 
-        # Create script configuration
-        script_config = {
-            "alias": f"Mark {item['title']} as Done",
-            "sequence": [{
-                "service": f"{DOMAIN}.mark_done",
-                "data": {
-                    "item_id": item_id
-                }
-            }]
-        }
+        # Create a closure to capture the item_id properly
+        def create_service_handler(captured_item_id):
+            async def service_handler(call):
+                """Handle the service call to mark item as done."""
+                await mark_item_done(hass, captured_item_id)
+                _LOGGER.info(f"Executed script service for {captured_item_id}")
+            return service_handler
 
-        # Create the script entity directly
+        service_handler = create_service_handler(item_id)
+
         try:
-            from homeassistant.components.script import ScriptEntity
+            # Register as a service that can be called like script.mark_ac_filters_done
+            hass.services.async_register(
+                "script",
+                script_service_name,
+                service_handler,
+            )
 
-            script_entity = ScriptEntity(hass, script_id, script_config, True)
-
-            # Register the script entity
-            hass.data[SCRIPT_DOMAIN][script_id] = script_entity
-
-            # Add to entity registry
-            entity_id = f"script.{script_id}"
+            # Create a matching entity state for UI purposes
+            entity_id = f"script.{script_service_name}"
             hass.states.async_set(entity_id, "off", {
                 "friendly_name": f"Mark {item['title']} as Done",
-                "icon": "mdi:check-circle"
+                "icon": "mdi:check-circle",
+                "entity_id": entity_id
             })
 
-            _LOGGER.info(f"Created script: {entity_id}")
+            _LOGGER.info(f"Successfully created script service: script.{script_service_name}")
 
         except Exception as e:
-            _LOGGER.error(f"Failed to create script {script_id}: {e}")
+            _LOGGER.warning(f"Could not register in script domain: {e}")
 
-            # Fallback: create a simple script using the Script helper
+            # Fallback: register in our own domain
             try:
-                sequence = [{
-                    "service": f"{DOMAIN}.mark_done",
-                    "data": {
-                        "item_id": item_id
-                    }
-                }]
-
-                script = Script(
-                    hass,
-                    sequence,
-                    f"Mark {item['title']} as Done",
-                    DOMAIN
+                hass.services.async_register(
+                    DOMAIN,
+                    script_service_name,
+                    service_handler,
                 )
-
-                # Store the script in a way that makes it accessible
-                if "scripts" not in hass.data:
-                    hass.data["scripts"] = {}
-                hass.data["scripts"][script_id] = script
-
-                _LOGGER.info(f"Created fallback script: {script_id}")
+                _LOGGER.info(f"Created service: {DOMAIN}.{script_service_name}")
 
             except Exception as fallback_error:
-                _LOGGER.error(f"Failed to create fallback script {script_id}: {fallback_error}")
+                _LOGGER.error(f"Failed to create any service for {script_service_name}: {fallback_error}")
